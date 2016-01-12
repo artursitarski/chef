@@ -1,0 +1,52 @@
+driver:
+  name: ec2
+  instance_type: m3.medium
+  region: us-west-2
+  availability_zone: us-west-2a
+  subnet_id: subnet-19ac017c
+  aws_ssh_key_id: <%= ENV["AWS_SSH_KEY_ID"] %>
+  tags:
+    chef-test: gem_versions
+
+provisioner:
+  name: chef_zero
+
+transport:
+  ssh_key: <%= ENV["HOME"] %>/.ssh/<%= ENV["AWS_SSH_KEY_ID"] %>.pem
+
+platforms:
+  - name: ubuntu-14.04
+    driver:
+      image_id: ami-7f675e4f
+      security_group_ids: ["sg-96274af3"]
+  - name: windows-2012r2
+    driver:
+      security_group_ids: ["sg-e401eb83", "sg-96274af3"]
+      instance_type: m3.large
+      image_id: ami-83a5bce2
+      user_data: |
+        <powershell>
+        $logfile="C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\kitchen-ec2.log"
+        #PS Remoting and & winrm.cmd basic config
+        Enable-PSRemoting -Force -SkipNetworkProfileCheck
+        & winrm.cmd set winrm/config '@{MaxTimeoutms="1800000"}' >> $logfile
+        & winrm.cmd set winrm/config/winrs '@{MaxMemoryPerShellMB="1024"}' >> $logfile
+        & winrm.cmd set winrm/config/winrs '@{MaxShellsPerUser="50"}' >> $logfile
+        #Server settings - support username/password login
+        & winrm.cmd set winrm/config/service/auth '@{Basic="true"}' >> $logfile
+        & winrm.cmd set winrm/config/service '@{AllowUnencrypted="true"}' >> $logfile
+        & winrm.cmd set winrm/config/winrs '@{MaxMemoryPerShellMB="1024"}' >> $logfile
+        #Firewall Config
+        & netsh advfirewall firewall set rule name="Windows Remote Management (HTTP-In)" profile=public protocol=tcp localport=5985 remoteip=localsubnet new remoteip=any  >> $logfile
+        #Set script execution to unrestricted
+        & Set-ExecutionPolicy Unrestricted -Force
+        </powershell>
+
+
+suites:
+  - name: gem_versions
+    provisioner:
+      product_name: chef
+      product_version: latest
+      channel: unstable
+    run_list:

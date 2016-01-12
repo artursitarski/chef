@@ -78,17 +78,26 @@ export FORCE_FFI_YAJL
 PATH=/opt/$PROJECT_NAME/bin:/opt/$PROJECT_NAME/embedded/bin:$PATH
 export PATH
 
-# Test against the vendored Chef gem
-cd /opt/$PROJECT_NAME/embedded/lib/ruby/gems/*/gems/chef-[0-9]*
+# ACCEPTANCE environment variable will be set on acceptance testers.
+# If is it set; we run the acceptance tests, otherwise run rspec tests.
+if [ "x$ACCEPTANCE" != "x" ]; then
+  # Test against the vendored Chef gem
+  cd /opt/$PROJECT_NAME/embedded/lib/ruby/gems/*/gems/chef-[0-9]*/acceptance
+  sudo env PATH=$PATH AWS_SSH_KEY_ID=$AWS_SSH_KEY_ID ARTIFACTORY_USERNAME=$ARTIFACTORY_USERNAME ARTIFACTORY_PASSWORD=$ARTIFACTORY_PASSWORD bundle install --without development
+  sudo env PATH=$PATH AWS_SSH_KEY_ID=$AWS_SSH_KEY_ID ARTIFACTORY_USERNAME=$ARTIFACTORY_USERNAME ARTIFACTORY_PASSWORD=$ARTIFACTORY_PASSWORD bundle exec chef-acceptance test gem_versions
+else
+  # Test against the vendored Chef gem
+  cd /opt/$PROJECT_NAME/embedded/lib/ruby/gems/*/gems/chef-[0-9]*
 
-if [ ! -f "Gemfile.lock" ]; then
-  echo "Chef gem does not contain a Gemfile.lock! This is needed to run any tests."
-  exit 1
-fi
+  if [ ! -f "Gemfile.lock" ]; then
+    echo "Chef gem does not contain a Gemfile.lock! This is needed to run any tests."
+    exit 1
+  fi
 
-CHEF_FIPS=0
-if [ $PIPELINE_NAME='chef-fips'];
-then
-    CHEF_FIPS=1
+  CHEF_FIPS=0
+  if [ $PIPELINE_NAME='chef-fips'];
+  then
+      CHEF_FIPS=1
+  fi
+  sudo env PATH=$PATH TERM=xterm CHEF_FIPS=$CHEF_FIPS bundle exec rspec -r rspec_junit_formatter -f RspecJunitFormatter -o $WORKSPACE/test.xml -f documentation spec/functional spec/unit
 fi
-sudo env PATH=$PATH TERM=xterm CHEF_FIPS=$CHEF_FIPS bundle exec rspec -r rspec_junit_formatter -f RspecJunitFormatter -o $WORKSPACE/test.xml -f documentation spec/functional spec/unit
